@@ -17,6 +17,8 @@ const envConfig = readEnvFile([
   'SEERR_URL',
   'SEERR_API_KEY',
   'OUTLOOK_CLIENT_ID',
+  'FORECASTER_API_URL',
+  'FORECASTER_API_KEY',
 ]);
 
 export const ASSISTANT_NAME =
@@ -71,6 +73,10 @@ export const SEERR_API_KEY =
   process.env.SEERR_API_KEY || envConfig.SEERR_API_KEY;
 export const OUTLOOK_CLIENT_ID =
   process.env.OUTLOOK_CLIENT_ID || envConfig.OUTLOOK_CLIENT_ID;
+export const FORECASTER_API_URL =
+  process.env.FORECASTER_API_URL || envConfig.FORECASTER_API_URL;
+export const FORECASTER_API_KEY =
+  process.env.FORECASTER_API_KEY || envConfig.FORECASTER_API_KEY;
 export const MAX_MESSAGES_PER_PROMPT = Math.max(
   1,
   parseInt(process.env.MAX_MESSAGES_PER_PROMPT || '10', 10) || 10,

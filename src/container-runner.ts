@@ -17,6 +17,8 @@ import {
   SEERR_URL,
   SEERR_API_KEY,
   OUTLOOK_CLIENT_ID,
+  FORECASTER_API_URL,
+  FORECASTER_API_KEY,
   GROUPS_DIR,
   IDLE_TIMEOUT,
   ONECLI_API_KEY,
@@ -281,6 +283,14 @@ async function buildContainerArgs(
 
   if (OUTLOOK_CLIENT_ID) {
     args.push('-e', `OUTLOOK_CLIENT_ID=${OUTLOOK_CLIENT_ID}`);
+  }
+
+  if (FORECASTER_API_URL) {
+    args.push('-e', `FORECASTER_API_URL=${FORECASTER_API_URL}`);
+  }
+
+  if (FORECASTER_API_KEY) {
+    args.push('-e', `FORECASTER_API_KEY=${FORECASTER_API_KEY}`);
   }
 
   // OneCLI gateway handles credential injection — containers never see real secrets.
