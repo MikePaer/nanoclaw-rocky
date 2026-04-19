@@ -60,8 +60,7 @@ export const ONECLI_API_KEY =
   process.env.ONECLI_API_KEY || envConfig.ONECLI_API_KEY;
 export const AVIATION_STACK_API_KEY =
   process.env.AVIATION_STACK_API_KEY || envConfig.AVIATION_STACK_API_KEY;
-export const JELLYFIN_URL =
-  process.env.JELLYFIN_URL || envConfig.JELLYFIN_URL;
+export const JELLYFIN_URL = process.env.JELLYFIN_URL || envConfig.JELLYFIN_URL;
 export const JELLYFIN_API_KEY =
   process.env.JELLYFIN_API_KEY || envConfig.JELLYFIN_API_KEY;
 export const MAX_MESSAGES_PER_PROMPT = Math.max(
