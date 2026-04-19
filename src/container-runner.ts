@@ -16,6 +16,7 @@ import {
   JELLYFIN_API_KEY,
   SEERR_URL,
   SEERR_API_KEY,
+  OUTLOOK_CLIENT_ID,
   GROUPS_DIR,
   IDLE_TIMEOUT,
   ONECLI_API_KEY,
@@ -276,6 +277,10 @@ async function buildContainerArgs(
 
   if (SEERR_API_KEY) {
     args.push('-e', `SEERR_API_KEY=${SEERR_API_KEY}`);
+  }
+
+  if (OUTLOOK_CLIENT_ID) {
+    args.push('-e', `OUTLOOK_CLIENT_ID=${OUTLOOK_CLIENT_ID}`);
   }
 
   // OneCLI gateway handles credential injection — containers never see real secrets.

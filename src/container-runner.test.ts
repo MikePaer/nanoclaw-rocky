@@ -19,6 +19,7 @@ vi.mock('./config.js', () => ({
   JELLYFIN_API_KEY: '',
   SEERR_URL: '',
   SEERR_API_KEY: '',
+  OUTLOOK_CLIENT_ID: '',
   ONECLI_API_KEY: '',
   ONECLI_URL: 'http://localhost:10254',
   TIMEZONE: 'America/Los_Angeles',

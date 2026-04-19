@@ -16,6 +16,7 @@ const envConfig = readEnvFile([
   'JELLYFIN_API_KEY',
   'SEERR_URL',
   'SEERR_API_KEY',
+  'OUTLOOK_CLIENT_ID',
 ]);
 
 export const ASSISTANT_NAME =
@@ -68,6 +69,8 @@ export const JELLYFIN_API_KEY =
 export const SEERR_URL = process.env.SEERR_URL || envConfig.SEERR_URL;
 export const SEERR_API_KEY =
   process.env.SEERR_API_KEY || envConfig.SEERR_API_KEY;
+export const OUTLOOK_CLIENT_ID =
+  process.env.OUTLOOK_CLIENT_ID || envConfig.OUTLOOK_CLIENT_ID;
 export const MAX_MESSAGES_PER_PROMPT = Math.max(
   1,
   parseInt(process.env.MAX_MESSAGES_PER_PROMPT || '10', 10) || 10,
