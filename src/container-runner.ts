@@ -11,6 +11,9 @@ import {
   CONTAINER_MAX_OUTPUT_SIZE,
   CONTAINER_TIMEOUT,
   DATA_DIR,
+  AVIATION_STACK_API_KEY,
+  JELLYFIN_URL,
+  JELLYFIN_API_KEY,
   GROUPS_DIR,
   IDLE_TIMEOUT,
   ONECLI_API_KEY,
@@ -252,6 +255,18 @@ async function buildContainerArgs(
 
   // Pass host timezone so container's local time matches the user's
   args.push('-e', `TZ=${TIMEZONE}`);
+
+  if (AVIATION_STACK_API_KEY) {
+    args.push('-e', `AVIATION_STACK_API_KEY=${AVIATION_STACK_API_KEY}`);
+  }
+
+  if (JELLYFIN_URL) {
+    args.push('-e', `JELLYFIN_URL=${JELLYFIN_URL}`);
+  }
+
+  if (JELLYFIN_API_KEY) {
+    args.push('-e', `JELLYFIN_API_KEY=${JELLYFIN_API_KEY}`);
+  }
 
   // OneCLI gateway handles credential injection — containers never see real secrets.
   // The gateway intercepts HTTPS traffic and injects API keys or OAuth tokens.

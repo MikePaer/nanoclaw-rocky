@@ -11,6 +11,9 @@ const envConfig = readEnvFile([
   'ONECLI_URL',
   'ONECLI_API_KEY',
   'TZ',
+  'AVIATION_STACK_API_KEY',
+  'JELLYFIN_URL',
+  'JELLYFIN_API_KEY',
 ]);
 
 export const ASSISTANT_NAME =
@@ -55,6 +58,12 @@ export const CONTAINER_MAX_OUTPUT_SIZE = parseInt(
 export const ONECLI_URL = process.env.ONECLI_URL || envConfig.ONECLI_URL;
 export const ONECLI_API_KEY =
   process.env.ONECLI_API_KEY || envConfig.ONECLI_API_KEY;
+export const AVIATION_STACK_API_KEY =
+  process.env.AVIATION_STACK_API_KEY || envConfig.AVIATION_STACK_API_KEY;
+export const JELLYFIN_URL =
+  process.env.JELLYFIN_URL || envConfig.JELLYFIN_URL;
+export const JELLYFIN_API_KEY =
+  process.env.JELLYFIN_API_KEY || envConfig.JELLYFIN_API_KEY;
 export const MAX_MESSAGES_PER_PROMPT = Math.max(
   1,
   parseInt(process.env.MAX_MESSAGES_PER_PROMPT || '10', 10) || 10,
