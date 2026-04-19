@@ -66,7 +66,8 @@ export const JELLYFIN_URL = process.env.JELLYFIN_URL || envConfig.JELLYFIN_URL;
 export const JELLYFIN_API_KEY =
   process.env.JELLYFIN_API_KEY || envConfig.JELLYFIN_API_KEY;
 export const SEERR_URL = process.env.SEERR_URL || envConfig.SEERR_URL;
-export const SEERR_API_KEY = process.env.SEERR_API_KEY || envConfig.SEERR_API_KEY;
+export const SEERR_API_KEY =
+  process.env.SEERR_API_KEY || envConfig.SEERR_API_KEY;
 export const MAX_MESSAGES_PER_PROMPT = Math.max(
   1,
   parseInt(process.env.MAX_MESSAGES_PER_PROMPT || '10', 10) || 10,
