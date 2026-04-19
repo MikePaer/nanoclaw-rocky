@@ -61,6 +61,7 @@ Use Slack mrkdwn syntax. Run `/slack-formatting` for the full reference. Key rul
 - `:emoji:` shortcodes
 - `>` for block quotes
 - No `##` headings — use `*Bold text*` instead
+- No Markdown tables — they render as raw `|` pipes. Use bullet lists, label/value lines, or a fenced code block with aligned columns
 
 ### WhatsApp/Telegram channels (folder starts with `whatsapp_` or `telegram_`)
 
@@ -69,7 +70,7 @@ Use Slack mrkdwn syntax. Run `/slack-formatting` for the full reference. Key rul
 - `•` bullet points
 - ` ``` ` code blocks
 
-No `##` headings. No `[links](url)`. No `**double stars**`.
+No `##` headings. No `[links](url)`. No `**double stars**`. No Markdown tables — they render as raw `|` pipes. Use bullet lists, label/value lines, or a fenced code block with aligned columns.
 
 ### Discord channels (folder starts with `discord_`)
 
