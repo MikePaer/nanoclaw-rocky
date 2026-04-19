@@ -17,6 +17,8 @@ vi.mock('./config.js', () => ({
   AVIATION_STACK_API_KEY: '',
   JELLYFIN_URL: '',
   JELLYFIN_API_KEY: '',
+  SEERR_URL: '',
+  SEERR_API_KEY: '',
   ONECLI_API_KEY: '',
   ONECLI_URL: 'http://localhost:10254',
   TIMEZONE: 'America/Los_Angeles',
