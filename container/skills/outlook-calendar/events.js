@@ -81,13 +81,39 @@ function toGraphUtcZ(date) {
   return date.toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
+// All-day events: Graph stores start/end as UTC midnight, but the YYYY-MM-DD
+// IS the intended calendar date — converting to a display tz shifts it to the
+// previous day in western zones. Return date-only (inclusive end) instead.
+function graphAllDayDate(graphDt) {
+  if (!graphDt || !graphDt.dateTime) return '';
+  return String(graphDt.dateTime).slice(0, 10);
+}
+
+function addDaysToIsoDate(isoDate, days) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!m) return isoDate;
+  const t = Date.UTC(+m[1], +m[2] - 1, +m[3]) + days * 86400000;
+  const d = new Date(t);
+  const y = d.getUTCFullYear();
+  const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const da = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${mo}-${da}`;
+}
+
 function simplifyEvent(ev, tz) {
+  const isAllDay = ev.isAllDay === true;
+  const startStr = isAllDay ? graphAllDayDate(ev.start) : graphDtToLocal(ev.start, tz);
+  // Graph's all-day end is exclusive (midnight of the day after). Subtract a day
+  // so `end` is the inclusive last calendar day of the event.
+  const endStr = isAllDay
+    ? addDaysToIsoDate(graphAllDayDate(ev.end), -1)
+    : graphDtToLocal(ev.end, tz);
   return {
     id: ev.id,
     subject: ev.subject,
-    start: graphDtToLocal(ev.start, tz),
-    end: graphDtToLocal(ev.end, tz),
-    is_all_day: ev.isAllDay === true,
+    start: startStr,
+    end: endStr,
+    is_all_day: isAllDay,
     location: (ev.location && ev.location.displayName) || '',
     body_preview: (ev.bodyPreview || '').trim(),
     is_cancelled: ev.isCancelled === true,

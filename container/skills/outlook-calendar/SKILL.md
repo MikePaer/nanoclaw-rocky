@@ -92,6 +92,8 @@ Shortcuts: `--today`, `--week` (next 7 calendar days), `--month` (next 30 days).
 
 Optional: `--tz America/New_York` for a one-off override of the display timezone. Calendar arg accepts a name (case-insensitive partial) or an ID. Recurring events are expanded via `/calendarView`.
 
+All-day events are returned with `is_all_day: true` and `start`/`end` as date-only `YYYY-MM-DD` (no time component). `end` is the inclusive last day of the event, so a single-day all-day event has `start === end`. Do NOT treat these as times — they are calendar dates and are not timezone-converted (Graph stores them as UTC midnight, which would otherwise shift to the previous day in western zones).
+
 ### Create an event
 
 ```bash
