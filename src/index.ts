@@ -340,6 +340,10 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
       if (text) {
         await channel.sendMessage(chatJid, text);
         outputSentToUser = true;
+        // Response delivered — stop the typing indicator immediately.
+        // Without this, `setTyping(false)` below only fires when `runAgent`
+        // returns (at container idle timeout, 8h), leaving the indicator on.
+        await channel.setTyping?.(chatJid, false);
       }
       // Only reset idle timer on actual results, not session-update markers (result: null)
       resetIdleTimer();

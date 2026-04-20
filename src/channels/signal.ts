@@ -18,6 +18,8 @@ const MAX_STDOUT_BUFFER = 1_000_000; // 1MB
 const SIGNAL_MESSAGE_MAX = 2000; // conservative split size
 const RECONNECT_BASE_MS = 5000;
 const RECONNECT_MAX_MS = 300_000; // 5 min cap
+const TYPING_REFRESH_MS = 10_000; // Signal's indicator TTL is ~15s — refresh every 10s
+const TYPING_MAX_MS = 600_000; // safety cap (10min) for a missed setTyping(false); normal teardown happens on response
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -82,6 +84,14 @@ export class SignalChannel implements Channel {
   >();
 
   private opts: ChannelOpts;
+
+  private typingRefresh = new Map<
+    string,
+    {
+      refresh: ReturnType<typeof setInterval>;
+      stop: ReturnType<typeof setTimeout>;
+    }
+  >();
 
   constructor(opts: ChannelOpts) {
     this.opts = opts;
@@ -152,6 +162,11 @@ export class SignalChannel implements Channel {
     this.flushing = false;
     this.stdoutBuffer = '';
     this.outgoingQueue = [];
+    for (const [, { refresh, stop }] of this.typingRefresh) {
+      clearInterval(refresh);
+      clearTimeout(stop);
+    }
+    this.typingRefresh.clear();
     if (this.proc) {
       this.proc.kill('SIGTERM');
       this.proc = null;
@@ -165,13 +180,35 @@ export class SignalChannel implements Channel {
   }
 
   async setTyping(jid: string, isTyping: boolean): Promise<void> {
-    if (!this.connected || !isTyping) return;
-    try {
-      const target = jid.replace(/^signal:/, '');
-      await this.rpcCall('sendTyping', routeRecipient(target));
-    } catch (err) {
-      logger.debug({ jid, err }, 'Failed to send Signal typing indicator');
+    if (!this.connected) return;
+
+    // Clear any existing refresh for this jid on both start (restart cycle)
+    // and stop (tear down).
+    const existing = this.typingRefresh.get(jid);
+    if (existing) {
+      clearInterval(existing.refresh);
+      clearTimeout(existing.stop);
+      this.typingRefresh.delete(jid);
     }
+
+    if (!isTyping) return;
+
+    const target = jid.replace(/^signal:/, '');
+    const send = async () => {
+      try {
+        await this.rpcCall('sendTyping', routeRecipient(target));
+      } catch (err) {
+        logger.debug({ jid, err }, 'Failed to send Signal typing indicator');
+      }
+    };
+
+    await send();
+    const refresh = setInterval(send, TYPING_REFRESH_MS);
+    const stop = setTimeout(() => {
+      clearInterval(refresh);
+      this.typingRefresh.delete(jid);
+    }, TYPING_MAX_MS);
+    this.typingRefresh.set(jid, { refresh, stop });
   }
 
   // --- Private helpers ---
