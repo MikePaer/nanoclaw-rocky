@@ -19,6 +19,8 @@ const envConfig = readEnvFile([
   'OUTLOOK_CLIENT_ID',
   'FORECASTER_API_URL',
   'FORECASTER_API_KEY',
+  'SIGNAL_PHONE_NUMBER',
+  'SIGNAL_CLI_PATH',
 ]);
 
 export const ASSISTANT_NAME =
@@ -77,6 +79,10 @@ export const FORECASTER_API_URL =
   process.env.FORECASTER_API_URL || envConfig.FORECASTER_API_URL;
 export const FORECASTER_API_KEY =
   process.env.FORECASTER_API_KEY || envConfig.FORECASTER_API_KEY;
+export const SIGNAL_PHONE_NUMBER =
+  process.env.SIGNAL_PHONE_NUMBER || envConfig.SIGNAL_PHONE_NUMBER || '';
+export const SIGNAL_CLI_PATH =
+  process.env.SIGNAL_CLI_PATH || envConfig.SIGNAL_CLI_PATH || 'signal-cli';
 export const MAX_MESSAGES_PER_PROMPT = Math.max(
   1,
   parseInt(process.env.MAX_MESSAGES_PER_PROMPT || '10', 10) || 10,
