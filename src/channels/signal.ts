@@ -1,14 +1,51 @@
 import { ChildProcess, spawn } from 'child_process';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 
 import {
   ASSISTANT_NAME,
   SIGNAL_CLI_PATH,
   SIGNAL_PHONE_NUMBER,
 } from '../config.js';
+import { resolveGroupFolderPath } from '../group-folder.js';
 import { logger } from '../logger.js';
 import { parseSignalStyles } from '../text-styles.js';
 import { Channel } from '../types.js';
 import { registerChannel, ChannelOpts } from './registry.js';
+
+// Default signal-cli XDG data dir when not overridden on the CLI.
+const SIGNAL_CLI_DATA_DIR = path.join(
+  os.homedir(),
+  '.local',
+  'share',
+  'signal-cli',
+);
+const SIGNAL_ATTACHMENTS_DIR = path.join(SIGNAL_CLI_DATA_DIR, 'attachments');
+
+const MIME_EXT: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'image/heic': '.heic',
+  'video/mp4': '.mp4',
+  'video/quicktime': '.mov',
+  'audio/ogg': '.ogg',
+  'audio/mpeg': '.mp3',
+  'audio/aac': '.m4a',
+  'audio/mp4': '.m4a',
+  'application/pdf': '.pdf',
+};
+
+function labelForContentType(contentType: string | undefined): string {
+  if (!contentType) return '[File]';
+  if (contentType.startsWith('image/')) return '[Image]';
+  if (contentType.startsWith('video/')) return '[Video]';
+  if (contentType.startsWith('audio/')) return '[Voice]';
+  return '[File]';
+}
 
 const HEALTH_TIMEOUT_MS = 60000;
 const HEALTH_POLL_MS = 500;
@@ -353,6 +390,9 @@ export class SignalChannel implements Channel {
           dataMessage.mentions as Array<Record<string, unknown>> | undefined,
         ),
         groupInfo: dataMessage.groupInfo as Record<string, unknown> | undefined,
+        attachments: dataMessage.attachments as
+          | Array<Record<string, unknown>>
+          | undefined,
         isFromMe: false,
       });
       return;
@@ -379,6 +419,9 @@ export class SignalChannel implements Channel {
           sentMessage.mentions as Array<Record<string, unknown>> | undefined,
         ),
         groupInfo: sentMessage.groupInfo as Record<string, unknown> | undefined,
+        attachments: sentMessage.attachments as
+          | Array<Record<string, unknown>>
+          | undefined,
         isFromMe: true,
       });
     }
@@ -390,6 +433,7 @@ export class SignalChannel implements Channel {
     timestamp: number | undefined;
     message: string | undefined;
     groupInfo: Record<string, unknown> | undefined;
+    attachments: Array<Record<string, unknown>> | undefined;
     isFromMe: boolean;
   }): void {
     let chatJid: string;
@@ -432,21 +476,105 @@ export class SignalChannel implements Channel {
       isGroup,
     );
 
-    const groups = this.opts.registeredGroups();
-    if (!groups[chatJid]) return;
+    const group = this.opts.registeredGroups()[chatJid];
+    if (!group) return;
 
-    if (!msg.message) return;
+    const msgId = `signal-${msg.timestamp || Date.now()}`;
+    const attachmentPlaceholders = msg.attachments?.length
+      ? this.copyAttachments(msg.attachments, group.folder, msgId)
+      : [];
+
+    // Build delivered content: original text + attachment placeholders.
+    // Attachments alone (no text) still trigger delivery.
+    const parts = [msg.message?.trim(), ...attachmentPlaceholders].filter(
+      (s): s is string => Boolean(s),
+    );
+    if (parts.length === 0) return;
 
     this.opts.onMessage(chatJid, {
-      id: `signal-${msg.timestamp || Date.now()}`,
+      id: msgId,
       chat_jid: chatJid,
       sender: msg.sourceId || '',
       sender_name: msg.sourceName,
-      content: msg.message,
+      content: parts.join(' '),
       timestamp: isoTimestamp,
       is_from_me: msg.isFromMe,
       is_bot_message: msg.isFromMe,
     });
+  }
+
+  /**
+   * Copy each inbound attachment from signal-cli's store into the group's
+   * attachments dir (mounted at /workspace/group/attachments/ in the agent
+   * container). Returns placeholder strings like "[Image] (/path)" matching
+   * the Telegram channel's convention so the agent can Read() the file.
+   */
+  private copyAttachments(
+    attachments: Array<Record<string, unknown>>,
+    groupFolder: string,
+    msgId: string,
+  ): string[] {
+    let sourceFiles: string[];
+    try {
+      sourceFiles = fs.readdirSync(SIGNAL_ATTACHMENTS_DIR);
+    } catch (err) {
+      logger.warn(
+        { dir: SIGNAL_ATTACHMENTS_DIR, err },
+        'Signal attachments dir not readable, skipping attachments',
+      );
+      return [];
+    }
+
+    const groupDir = resolveGroupFolderPath(groupFolder);
+    const attachDir = path.join(groupDir, 'attachments');
+    fs.mkdirSync(attachDir, { recursive: true });
+
+    const results: string[] = [];
+    for (let i = 0; i < attachments.length; i++) {
+      const att = attachments[i];
+      const id = att.id as string | undefined;
+      if (!id) continue;
+
+      const srcName = sourceFiles.find(
+        (f) => f === id || f.startsWith(`${id}.`),
+      );
+      if (!srcName) {
+        logger.warn(
+          { id, dir: SIGNAL_ATTACHMENTS_DIR },
+          'Signal attachment file not found on disk, skipping',
+        );
+        continue;
+      }
+
+      const contentType = att.contentType as string | undefined;
+      const ext =
+        path.extname(srcName) || MIME_EXT[contentType ?? ''] || '.bin';
+      const origFilename = (att.filename as string | undefined) || '';
+      const safeBase = origFilename
+        ? origFilename
+            .replace(/\.[^.]+$/, '')
+            .replace(/[^a-zA-Z0-9._-]/g, '_')
+        : `${msgId}-${i}`;
+      const finalName = `${safeBase}${ext}`;
+      const destPath = path.join(attachDir, finalName);
+
+      try {
+        fs.copyFileSync(path.join(SIGNAL_ATTACHMENTS_DIR, srcName), destPath);
+        results.push(
+          `${labelForContentType(contentType)} (/workspace/group/attachments/${finalName})`,
+        );
+        logger.info(
+          { id, contentType, dest: destPath },
+          'Signal attachment copied',
+        );
+      } catch (err) {
+        logger.warn(
+          { id, err },
+          'Failed to copy Signal attachment, skipping',
+        );
+      }
+    }
+    return results;
   }
 
   private async rpcSend(jid: string, text: string): Promise<void> {
