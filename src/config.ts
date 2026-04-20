@@ -21,6 +21,7 @@ const envConfig = readEnvFile([
   'FORECASTER_API_KEY',
   'SIGNAL_PHONE_NUMBER',
   'SIGNAL_CLI_PATH',
+  'NO_PROXY',
 ]);
 
 export const ASSISTANT_NAME =
@@ -83,6 +84,16 @@ export const SIGNAL_PHONE_NUMBER =
   process.env.SIGNAL_PHONE_NUMBER || envConfig.SIGNAL_PHONE_NUMBER || '';
 export const SIGNAL_CLI_PATH =
   process.env.SIGNAL_CLI_PATH || envConfig.SIGNAL_CLI_PATH || 'signal-cli';
+
+// Hosts that the container should reach WITHOUT going through the OneCLI
+// proxy (which is for Anthropic API credential injection only).
+// Loopback + Docker gateway always; LAN services added via .env.
+// NOTE: Node 22's built-in fetch (undici) does NOT parse CIDR or partial
+// wildcards here — list literal hostnames/IPs, comma-separated.
+export const NO_PROXY =
+  process.env.NO_PROXY ||
+  envConfig.NO_PROXY ||
+  'localhost,127.0.0.1,host.docker.internal';
 export const MAX_MESSAGES_PER_PROMPT = Math.max(
   1,
   parseInt(process.env.MAX_MESSAGES_PER_PROMPT || '10', 10) || 10,

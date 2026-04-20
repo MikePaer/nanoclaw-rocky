@@ -21,6 +21,7 @@ import {
   FORECASTER_API_KEY,
   GROUPS_DIR,
   IDLE_TIMEOUT,
+  NO_PROXY,
   ONECLI_API_KEY,
   ONECLI_URL,
   TIMEZONE,
@@ -292,6 +293,13 @@ async function buildContainerArgs(
   if (FORECASTER_API_KEY) {
     args.push('-e', `FORECASTER_API_KEY=${FORECASTER_API_KEY}`);
   }
+
+  // Bypass the OneCLI proxy for loopback and LAN addresses — those services
+  // (Jellyfin, Seerr, internal APIs) never need credential injection and the
+  // proxy can't reach RFC1918 hosts anyway. Set both cases because Node's
+  // fetch reads NO_PROXY and many *nix tools read no_proxy.
+  args.push('-e', `NO_PROXY=${NO_PROXY}`);
+  args.push('-e', `no_proxy=${NO_PROXY}`);
 
   // OneCLI gateway handles credential injection — containers never see real secrets.
   // The gateway intercepts HTTPS traffic and injects API keys or OAuth tokens.
