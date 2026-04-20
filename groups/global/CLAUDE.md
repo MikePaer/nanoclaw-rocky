@@ -96,3 +96,7 @@ If a user wants tasks running more than ~2x daily and a script can't reduce agen
 - Suggest restructuring with a script that checks the condition first
 - If the user needs an LLM to evaluate data, suggest using an API key with direct Anthropic API calls inside the script
 - Help the user find the minimum viable frequency
+
+## Timezone
+
+The container's `TZ` is set to `America/Los_Angeles`. **Always display times in local (Pacific) time** — never show raw UTC strings to the user. When formatting timestamps from APIs or databases, convert using `new Date(ts).toLocaleString('en-US', {timeZone: 'America/Los_Angeles'})` or equivalent. This applies to all times: scraper runs, task schedules, transactions, flight times, calendar events, etc.
