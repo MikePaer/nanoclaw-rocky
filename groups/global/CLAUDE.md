@@ -49,32 +49,14 @@ When you learn something important:
 
 ## Message Formatting
 
-Format messages based on the channel you're responding to. Check your group folder name:
+**Always write in standard Markdown** — `**bold**`, `*italic*`, `## headings`, `[text](url)`, `` `code` ``, fenced code blocks, bullet lists. The system converts your output to each channel's native syntax before sending. Do NOT pre-format for a specific channel (e.g. don't use Slack's `<url|text>` or single-asterisk `*bold*` — those will be misinterpreted).
 
-### Slack channels (folder starts with `slack_`)
+**Never emit Markdown tables** for WhatsApp, Telegram, or Slack — they render as raw `|` pipes (only Discord renders tables). For tabular data use one of:
+- Bullet lists with label/value pairs
+- A fenced code block with aligned columns (monospace renders consistently)
 
-Use Slack mrkdwn syntax. Run `/slack-formatting` for the full reference. Key rules:
-- `*bold*` (single asterisks)
-- `_italic_` (underscores)
-- `<https://url|link text>` for links (NOT `[text](url)`)
-- `•` bullets (no numbered lists)
-- `:emoji:` shortcodes
-- `>` for block quotes
-- No `##` headings — use `*Bold text*` instead
-- No Markdown tables — they render as raw `|` pipes. Use bullet lists, label/value lines, or a fenced code block with aligned columns
-
-### WhatsApp/Telegram channels (folder starts with `whatsapp_` or `telegram_`)
-
-- `*bold*` (single asterisks, NEVER **double**)
-- `_italic_` (underscores)
-- `•` bullet points
-- ` ``` ` code blocks
-
-No `##` headings. No `[links](url)`. No `**double stars**`. No Markdown tables — they render as raw `|` pipes. Use bullet lists, label/value lines, or a fenced code block with aligned columns.
-
-### Discord channels (folder starts with `discord_`)
-
-Standard Markdown works: `**bold**`, `*italic*`, `[links](url)`, `# headings`.
+This applies to ALL channels except Discord. Check your group folder name to know your channel:
+- `whatsapp_*` → WhatsApp · `telegram_*` → Telegram · `slack_*` → Slack · `discord_*` → Discord (tables and full Markdown OK)
 
 ---
 
