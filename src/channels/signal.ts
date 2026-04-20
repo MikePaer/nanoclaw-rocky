@@ -19,7 +19,8 @@ const SIGNAL_MESSAGE_MAX = 2000; // conservative split size
 const RECONNECT_BASE_MS = 5000;
 const RECONNECT_MAX_MS = 300_000; // 5 min cap
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Replace U+FFFC mention placeholders with @name text.
@@ -234,7 +235,10 @@ export class SignalChannel implements Channel {
         );
         this.reconnectAttempts += 1;
         setTimeout(() => {
-          logger.info({ delayMs: delay, attempt: this.reconnectAttempts }, 'Restarting signal-cli');
+          logger.info(
+            { delayMs: delay, attempt: this.reconnectAttempts },
+            'Restarting signal-cli',
+          );
           this.connect().catch((err) =>
             logger.error({ err }, 'Failed to restart signal-cli'),
           );
@@ -332,8 +336,7 @@ export class SignalChannel implements Channel {
       this.processMessage({
         sourceId: chatId,
         sourceName,
-        timestamp:
-          (sentMessage.timestamp as number | undefined) ?? timestamp,
+        timestamp: (sentMessage.timestamp as number | undefined) ?? timestamp,
         message: resolveMentions(
           sentMessage.message as string | undefined,
           sentMessage.mentions as Array<Record<string, unknown>> | undefined,
@@ -384,7 +387,13 @@ export class SignalChannel implements Channel {
     }
 
     const groupName = msg.groupInfo?.groupName as string | undefined;
-    this.opts.onChatMetadata(chatJid, isoTimestamp, groupName, 'signal', isGroup);
+    this.opts.onChatMetadata(
+      chatJid,
+      isoTimestamp,
+      groupName,
+      'signal',
+      isGroup,
+    );
 
     const groups = this.opts.registeredGroups();
     if (!groups[chatJid]) return;
