@@ -551,9 +551,7 @@ export class SignalChannel implements Channel {
         path.extname(srcName) || MIME_EXT[contentType ?? ''] || '.bin';
       const origFilename = (att.filename as string | undefined) || '';
       const safeBase = origFilename
-        ? origFilename
-            .replace(/\.[^.]+$/, '')
-            .replace(/[^a-zA-Z0-9._-]/g, '_')
+        ? origFilename.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9._-]/g, '_')
         : `${msgId}-${i}`;
       const finalName = `${safeBase}${ext}`;
       const destPath = path.join(attachDir, finalName);
@@ -568,10 +566,7 @@ export class SignalChannel implements Channel {
           'Signal attachment copied',
         );
       } catch (err) {
-        logger.warn(
-          { id, err },
-          'Failed to copy Signal attachment, skipping',
-        );
+        logger.warn({ id, err }, 'Failed to copy Signal attachment, skipping');
       }
     }
     return results;
