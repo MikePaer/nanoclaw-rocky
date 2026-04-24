@@ -16,15 +16,19 @@ export type ChannelType =
   | 'whatsapp'
   | 'telegram'
   | 'slack'
-  | 'discord';
+  | 'discord'
+  | 'webhook';
 
 /** Transform Markdown text for the target channel's native format. */
 export function parseTextStyles(text: string, channel: ChannelType): string {
   if (!text) return text;
 
-  // Discord and Signal are passthrough — no marker substitution.
-  // Discord is already Markdown; Signal uses parseSignalStyles() for rich text.
-  if (channel === 'discord' || channel === 'signal') return text;
+  // Discord, Signal, and Webhook are passthrough — no marker substitution.
+  // Discord is already Markdown; Signal uses parseSignalStyles() for rich text;
+  // Webhook recipients (web apps) consume raw text and handle formatting themselves.
+  if (channel === 'discord' || channel === 'signal' || channel === 'webhook') {
+    return text;
+  }
 
   // Split into protected (code) and unprotected regions, transform only the latter.
   const segments = splitProtectedRegions(text);

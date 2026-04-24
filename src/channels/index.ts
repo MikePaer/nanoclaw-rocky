@@ -13,4 +13,7 @@ import './signal.js';
 // telegram
 import './telegram.js';
 
+// webhook
+import './webhook.js';
+
 // whatsapp
