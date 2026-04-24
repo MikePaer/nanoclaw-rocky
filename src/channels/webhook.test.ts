@@ -23,9 +23,7 @@ type WithServer = {
   server: import('http').Server | null;
 };
 
-function makeOpts(
-  overrides?: Partial<ChannelOpts>,
-): ChannelOpts & {
+function makeOpts(overrides?: Partial<ChannelOpts>): ChannelOpts & {
   onMessage: ReturnType<typeof vi.fn>;
   onChatMetadata: ReturnType<typeof vi.fn>;
   registeredGroups: ReturnType<typeof vi.fn>;
@@ -397,9 +395,7 @@ describe('WebhookChannel', () => {
   });
 
   describe('per-slug routing', () => {
-    function makeRoutingOpts(
-      targetJid: string,
-    ): ReturnType<typeof makeOpts> {
+    function makeRoutingOpts(targetJid: string): ReturnType<typeof makeOpts> {
       const opts = makeOpts();
       opts.registeredGroups = vi.fn(() => ({
         [targetJid]: {
