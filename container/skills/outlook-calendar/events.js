@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 'use strict';
 
-// Event operations: list (calendarView expands recurring), create, delete.
-// Times interpreted as DEFAULT_TZ (container's TZ env or America/Los_Angeles).
+// Event operations: list, search, get, create, update, delete.
+// Times interpreted in the resolved display timezone (--tz / OUTLOOK_TIMEZONE / TZ / UTC).
 
 const {
   die,
@@ -11,6 +11,14 @@ const {
   graphGetAll,
   graphRequest,
   resolveTimezone,
+  parseLocal,
+  graphDtToLocal,
+  toGraphUtcZ,
+  graphAllDayDate,
+  addDaysToIsoDate,
+  formatDateOnly,
+  formatLocalWall,
+  stripOffset,
 } = require('./_common');
 const { listCalendars } = require('./calendars');
 
@@ -29,75 +37,6 @@ function parseFlags(argv) {
     }
   }
   return flags;
-}
-
-// Interpret a wall-clock string in a given IANA timezone and return the UTC Date.
-// Handles YYYY-MM-DD, YYYY-MM-DDTHH:MM, YYYY-MM-DDTHH:MM:SS.
-function parseLocal(str, tz) {
-  const s = str.trim();
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
-  if (!m) die(`Could not parse datetime '${str}'. Expected YYYY-MM-DD or YYYY-MM-DDTHH:MM.`);
-  const [, y, mo, d, h = '00', mi = '00', se = '00'] = m;
-  const asUtc = Date.UTC(+y, +mo - 1, +d, +h, +mi, +se);
-  // Find what that UTC instant looks like in `tz`, then correct by the offset.
-  const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-  });
-  const parts = {};
-  for (const p of fmt.formatToParts(new Date(asUtc))) parts[p.type] = p.value;
-  const asIfTz = Date.UTC(
-    +parts.year, +parts.month - 1, +parts.day,
-    +parts.hour % 24, +parts.minute, +parts.second,
-  );
-  const offset = asIfTz - asUtc;
-  return new Date(asUtc - offset);
-}
-
-// Format a UTC-ish dateTime string from Graph into a local wall-clock ISO string.
-function graphDtToLocal(graphDt, tz) {
-  if (!graphDt) return '';
-  let dtStr = graphDt.dateTime || '';
-  const tzStr = graphDt.timeZone || 'UTC';
-  if (dtStr.includes('.')) dtStr = dtStr.split('.')[0];
-  // Graph usually gives UTC; if it claims something else, best-effort treat as UTC.
-  const asUtc = tzStr === 'UTC' || /Z$/.test(dtStr)
-    ? new Date(dtStr.replace(/Z?$/, 'Z'))
-    : new Date(dtStr + 'Z');
-  if (isNaN(asUtc.getTime())) return `${dtStr} ${tzStr}`;
-  const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hour12: false,
-  });
-  const p = {};
-  for (const part of fmt.formatToParts(asUtc)) p[part.type] = part.value;
-  const hh = p.hour === '24' ? '00' : p.hour;
-  return `${p.year}-${p.month}-${p.day}T${hh}:${p.minute}`;
-}
-
-function toGraphUtcZ(date) {
-  return date.toISOString().replace(/\.\d{3}Z$/, 'Z');
-}
-
-// All-day events: Graph stores start/end as UTC midnight, but the YYYY-MM-DD
-// IS the intended calendar date — converting to a display tz shifts it to the
-// previous day in western zones. Return date-only (inclusive end) instead.
-function graphAllDayDate(graphDt) {
-  if (!graphDt || !graphDt.dateTime) return '';
-  return String(graphDt.dateTime).slice(0, 10);
-}
-
-function addDaysToIsoDate(isoDate, days) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
-  if (!m) return isoDate;
-  const t = Date.UTC(+m[1], +m[2] - 1, +m[3]) + days * 86400000;
-  const d = new Date(t);
-  const y = d.getUTCFullYear();
-  const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const da = String(d.getUTCDate()).padStart(2, '0');
-  return `${y}-${mo}-${da}`;
 }
 
 function simplifyEvent(ev, tz) {
@@ -120,6 +59,8 @@ function simplifyEvent(ev, tz) {
     organizer:
       (ev.organizer && ev.organizer.emailAddress && ev.organizer.emailAddress.name) || '',
     web_link: ev.webLink,
+    event_type: ev.type || 'singleInstance',
+    series_master_id: ev.seriesMasterId || null,
   };
 }
 
@@ -142,6 +83,93 @@ async function resolveCalendar(token, identifier) {
   );
 }
 
+const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const DAY_ABBREV = {
+  sun: 'sunday', mon: 'monday', tue: 'tuesday', wed: 'wednesday',
+  thu: 'thursday', fri: 'friday', sat: 'saturday',
+};
+
+function dayOfWeekFromDate(isoDate) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!m) return 'monday';
+  // noon UTC avoids any DST/edge weirdness around midnight
+  return DAY_NAMES[new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12)).getUTCDay()];
+}
+
+function normalizeDayName(t) {
+  const s = t.trim().toLowerCase();
+  if (DAY_NAMES.includes(s)) return s;
+  if (DAY_ABBREV[s]) return DAY_ABBREV[s];
+  return null;
+}
+
+function buildRecurrence(flags, startStr, tz) {
+  if (flags.repeat === undefined) return undefined;
+  const raw = String(flags.repeat).toLowerCase();
+  if (raw === 'none') return null; // explicit removal (used on update)
+  const valid = ['daily', 'weekly', 'monthly', 'yearly'];
+  if (!valid.includes(raw)) {
+    die(`--repeat must be one of ${valid.join('|')} or 'none'. Got '${flags.repeat}'.`);
+  }
+  const interval = flags['repeat-interval'] !== undefined ? Number(flags['repeat-interval']) : 1;
+  if (!Number.isFinite(interval) || interval < 1 || !Number.isInteger(interval)) {
+    die(`--repeat-interval must be a positive integer. Got '${flags['repeat-interval']}'.`);
+  }
+  const startDate = String(startStr).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+    die(`Cannot derive recurrence start date from --start='${startStr}'.`);
+  }
+
+  let pattern;
+  if (raw === 'daily') {
+    pattern = { type: 'daily', interval };
+  } else if (raw === 'weekly') {
+    let daysOfWeek;
+    if (flags['repeat-days'] && flags['repeat-days'] !== true) {
+      const tokens = String(flags['repeat-days']).split(',');
+      daysOfWeek = tokens.map((t) => {
+        const full = normalizeDayName(t);
+        if (!full) die(`Invalid day '${t.trim()}' in --repeat-days. Use mon,tue,wed,thu,fri,sat,sun (or full names).`);
+        return full;
+      });
+    } else {
+      daysOfWeek = [dayOfWeekFromDate(startDate)];
+    }
+    pattern = { type: 'weekly', interval, daysOfWeek };
+  } else if (raw === 'monthly') {
+    pattern = { type: 'absoluteMonthly', interval, dayOfMonth: Number(startDate.slice(8, 10)) };
+  } else if (raw === 'yearly') {
+    pattern = {
+      type: 'absoluteYearly',
+      interval,
+      month: Number(startDate.slice(5, 7)),
+      dayOfMonth: Number(startDate.slice(8, 10)),
+    };
+  }
+
+  if (flags['repeat-until'] && flags['repeat-count']) {
+    die('--repeat-until and --repeat-count are mutually exclusive.');
+  }
+  let range;
+  if (flags['repeat-until'] && flags['repeat-until'] !== true) {
+    const until = String(flags['repeat-until']).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(until)) {
+      die(`--repeat-until must be YYYY-MM-DD. Got '${flags['repeat-until']}'.`);
+    }
+    range = { type: 'endDate', startDate, endDate: until, recurrenceTimeZone: tz };
+  } else if (flags['repeat-count'] && flags['repeat-count'] !== true) {
+    const n = Number(flags['repeat-count']);
+    if (!Number.isFinite(n) || n < 1 || !Number.isInteger(n)) {
+      die(`--repeat-count must be a positive integer. Got '${flags['repeat-count']}'.`);
+    }
+    range = { type: 'numbered', startDate, numberOfOccurrences: n, recurrenceTimeZone: tz };
+  } else {
+    range = { type: 'noEnd', startDate, recurrenceTimeZone: tz };
+  }
+
+  return { pattern, range };
+}
+
 async function cmdList() {
   const flags = parseFlags(process.argv.slice(3));
   if (!flags.calendar) die('--calendar is required');
@@ -151,11 +179,9 @@ async function cmdList() {
   const now = new Date();
   let startDt, endDt;
   if (flags.today) {
-    // midnight today in tz
     startDt = parseLocal(formatDateOnly(now, tz), tz);
     endDt = new Date(startDt.getTime() + 24 * 3600 * 1000);
   } else if (flags.week) {
-    // anchor to midnight today in tz so the window is calendar-day aligned
     startDt = parseLocal(formatDateOnly(now, tz), tz);
     endDt = new Date(startDt.getTime() + 7 * 24 * 3600 * 1000);
   } else if (flags.month) {
@@ -194,24 +220,57 @@ async function cmdList() {
   });
 }
 
-function formatDateOnly(date, tz) {
-  const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+async function cmdSearch() {
+  const flags = parseFlags(process.argv.slice(3));
+  if (!flags.query || flags.query === true) die('--query is required');
+  const tz = resolveTimezone(typeof flags.tz === 'string' ? flags.tz : undefined);
+  const token = await getAccessToken();
+
+  const params = {
+    $search: `"${String(flags.query).replace(/"/g, '\\"')}"`,
+    $top: 50,
+  };
+
+  let calendars;
+  if (flags.calendar) {
+    calendars = [await resolveCalendar(token, String(flags.calendar))];
+  } else {
+    calendars = await listCalendars(token);
+  }
+
+  const results = await Promise.all(
+    calendars.map(async (cal) => {
+      const raw = await graphGetAll(
+        `/me/calendars/${encodeURIComponent(cal.id)}/events`,
+        token,
+        params,
+      );
+      return raw.map((ev) => ({ ...simplifyEvent(ev, tz), calendar: cal.name }));
+    }),
+  );
+  const events = results.flat();
+
+  emit({
+    query: String(flags.query),
+    calendars_searched: calendars.map((c) => c.name),
+    events,
+    count: events.length,
+    timezone: tz,
   });
-  const p = {};
-  for (const part of fmt.formatToParts(date)) p[part.type] = part.value;
-  return `${p.year}-${p.month}-${p.day}`;
 }
 
-function formatLocalWall(date, tz) {
-  const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hour12: false,
-  });
-  const p = {};
-  for (const part of fmt.formatToParts(date)) p[part.type] = part.value;
-  const hh = p.hour === '24' ? '00' : p.hour;
-  return `${p.year}-${p.month}-${p.day}T${hh}:${p.minute}`;
+async function cmdGet() {
+  const flags = parseFlags(process.argv.slice(3));
+  if (!flags.id || flags.id === true) die('--id is required');
+  const tz = resolveTimezone(typeof flags.tz === 'string' ? flags.tz : undefined);
+  const token = await getAccessToken();
+  const ev = await graphRequest(
+    'GET',
+    `/me/events/${encodeURIComponent(String(flags.id))}`,
+    token,
+  );
+  if (!ev || typeof ev !== 'object') die('Event fetch returned unexpected response.');
+  emit({ event: simplifyEvent(ev, tz), timezone: tz });
 }
 
 async function cmdCreate() {
@@ -230,7 +289,6 @@ async function cmdCreate() {
     die(`End time ${flags.end} must be after start time ${flags.start}`);
   }
 
-  // Graph accepts wall-clock dateTime + timeZone; let them do the conversion.
   const body = {
     subject: String(flags.subject),
     start: { dateTime: stripOffset(String(flags.start)), timeZone: tz },
@@ -239,6 +297,11 @@ async function cmdCreate() {
   };
   if (flags.location) body.location = { displayName: String(flags.location) };
   if (flags.body) body.body = { contentType: 'text', content: String(flags.body) };
+  const recurrence = buildRecurrence(flags, String(flags.start), tz);
+  if (recurrence) body.recurrence = recurrence;
+  if (recurrence === null) {
+    die("--repeat=none is only meaningful on update; on create just omit --repeat.");
+  }
 
   const created = await graphRequest(
     'POST',
@@ -256,35 +319,102 @@ async function cmdCreate() {
   });
 }
 
-function stripOffset(s) {
-  // Normalize to YYYY-MM-DDTHH:MM:SS for Graph's dateTime field.
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
-  if (!m) return s;
-  const [, y, mo, d, h = '00', mi = '00', se = '00'] = m;
-  return `${y}-${mo}-${d}T${h}:${mi}:${se}`;
+// Resolve an ID for scope semantics. `this` (default) leaves the ID untouched —
+// PATCH/DELETE on an occurrence ID affects only that occurrence. `series` looks
+// up seriesMasterId so we operate on the whole series.
+async function resolveScopedId(token, calId, eventId, scope) {
+  if (scope !== 'series') return eventId;
+  const ev = await graphRequest(
+    'GET',
+    `/me/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(eventId)}`,
+    token,
+  );
+  if (!ev || typeof ev !== 'object') die('Could not fetch event to resolve series.');
+  if (ev.type === 'seriesMaster') return ev.id;
+  if (ev.seriesMasterId) return ev.seriesMasterId;
+  die(`Event ${eventId} is not part of a recurring series — --scope=series doesn't apply.`);
+}
+
+async function cmdUpdate() {
+  const flags = parseFlags(process.argv.slice(3));
+  if (!flags.calendar) die('--calendar is required');
+  if (!flags.id) die('--id is required');
+  const updatable = ['subject', 'start', 'end', 'location', 'body', 'all-day'];
+  if (!updatable.some((k) => flags[k] !== undefined)) {
+    die(`Provide at least one field to update: ${updatable.map((k) => '--' + k).join(', ')}`);
+  }
+  const scope = flags.scope === 'series' ? 'series' : 'this';
+  const tz = resolveTimezone(typeof flags.tz === 'string' ? flags.tz : undefined);
+  const token = await getAccessToken();
+  const cal = await resolveCalendar(token, String(flags.calendar));
+  const targetId = await resolveScopedId(token, cal.id, String(flags.id), scope);
+
+  const body = {};
+  if (flags.subject !== undefined) body.subject = String(flags.subject);
+  if (flags.start !== undefined) {
+    body.start = { dateTime: stripOffset(String(flags.start)), timeZone: tz };
+  }
+  if (flags.end !== undefined) {
+    body.end = { dateTime: stripOffset(String(flags.end)), timeZone: tz };
+  }
+  if (flags.start !== undefined && flags.end !== undefined) {
+    const startDt = parseLocal(String(flags.start), tz);
+    const endDt = parseLocal(String(flags.end), tz);
+    if (endDt.getTime() <= startDt.getTime()) {
+      die(`End time ${flags.end} must be after start time ${flags.start}`);
+    }
+  }
+  if (flags.location !== undefined) {
+    body.location = { displayName: flags.location === true ? '' : String(flags.location) };
+  }
+  if (flags.body !== undefined) {
+    body.body = { contentType: 'text', content: flags.body === true ? '' : String(flags.body) };
+  }
+  if (flags['all-day'] !== undefined) body.isAllDay = flags['all-day'] === true;
+
+  const updated = await graphRequest(
+    'PATCH',
+    `/me/calendars/${encodeURIComponent(cal.id)}/events/${encodeURIComponent(targetId)}`,
+    token,
+    { body },
+  );
+  if (!updated || typeof updated !== 'object') die('Event update returned unexpected response.');
+
+  emit({
+    updated: true,
+    scope,
+    event: simplifyEvent(updated, tz),
+    calendar: cal.name,
+    timezone: tz,
+  });
 }
 
 async function cmdDelete() {
   const flags = parseFlags(process.argv.slice(3));
   if (!flags.calendar) die('--calendar is required');
   if (!flags.id) die('--id is required');
+  const scope = flags.scope === 'series' ? 'series' : 'this';
   const token = await getAccessToken();
   const cal = await resolveCalendar(token, String(flags.calendar));
+  const targetId = await resolveScopedId(token, cal.id, String(flags.id), scope);
   await graphRequest(
     'DELETE',
-    `/me/calendars/${encodeURIComponent(cal.id)}/events/${encodeURIComponent(String(flags.id))}`,
+    `/me/calendars/${encodeURIComponent(cal.id)}/events/${encodeURIComponent(targetId)}`,
     token,
   );
-  emit({ deleted: true, id: flags.id, calendar: cal.name });
+  emit({ deleted: true, scope, id: targetId, calendar: cal.name });
 }
 
 async function main() {
   const cmd = process.argv[2];
-  if (!cmd) die('Usage: node events.js [list|create|delete] [...flags]');
+  if (!cmd) die('Usage: node events.js [list|search|get|create|update|delete] [...flags]');
   if (cmd === 'list') await cmdList();
+  else if (cmd === 'search') await cmdSearch();
+  else if (cmd === 'get') await cmdGet();
   else if (cmd === 'create') await cmdCreate();
+  else if (cmd === 'update') await cmdUpdate();
   else if (cmd === 'delete') await cmdDelete();
-  else die(`Unknown command: ${cmd}. Use list, create, or delete.`);
+  else die(`Unknown command: ${cmd}. Use list, search, get, create, update, or delete.`);
 }
 
 if (require.main === module) {

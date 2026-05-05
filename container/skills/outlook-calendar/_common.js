@@ -280,6 +280,98 @@ async function graphGetAll(pathOrUrl, token, params) {
   return items;
 }
 
+// ---- Time helpers (shared between events.js and availability.js) ----
+
+// Interpret a wall-clock string in a given IANA timezone and return the UTC Date.
+// Handles YYYY-MM-DD, YYYY-MM-DDTHH:MM, YYYY-MM-DDTHH:MM:SS.
+function parseLocal(str, tz) {
+  const s = str.trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (!m) die(`Could not parse datetime '${str}'. Expected YYYY-MM-DD or YYYY-MM-DDTHH:MM.`);
+  const [, y, mo, d, h = '00', mi = '00', se = '00'] = m;
+  const asUtc = Date.UTC(+y, +mo - 1, +d, +h, +mi, +se);
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  });
+  const parts = {};
+  for (const p of fmt.formatToParts(new Date(asUtc))) parts[p.type] = p.value;
+  const asIfTz = Date.UTC(
+    +parts.year, +parts.month - 1, +parts.day,
+    +parts.hour % 24, +parts.minute, +parts.second,
+  );
+  const offset = asIfTz - asUtc;
+  return new Date(asUtc - offset);
+}
+
+function graphDtToLocal(graphDt, tz) {
+  if (!graphDt) return '';
+  let dtStr = graphDt.dateTime || '';
+  const tzStr = graphDt.timeZone || 'UTC';
+  if (dtStr.includes('.')) dtStr = dtStr.split('.')[0];
+  const asUtc = tzStr === 'UTC' || /Z$/.test(dtStr)
+    ? new Date(dtStr.replace(/Z?$/, 'Z'))
+    : new Date(dtStr + 'Z');
+  if (isNaN(asUtc.getTime())) return `${dtStr} ${tzStr}`;
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+  const p = {};
+  for (const part of fmt.formatToParts(asUtc)) p[part.type] = part.value;
+  const hh = p.hour === '24' ? '00' : p.hour;
+  return `${p.year}-${p.month}-${p.day}T${hh}:${p.minute}`;
+}
+
+function toGraphUtcZ(date) {
+  return date.toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+function graphAllDayDate(graphDt) {
+  if (!graphDt || !graphDt.dateTime) return '';
+  return String(graphDt.dateTime).slice(0, 10);
+}
+
+function addDaysToIsoDate(isoDate, days) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!m) return isoDate;
+  const t = Date.UTC(+m[1], +m[2] - 1, +m[3]) + days * 86400000;
+  const d = new Date(t);
+  const y = d.getUTCFullYear();
+  const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const da = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${mo}-${da}`;
+}
+
+function formatDateOnly(date, tz) {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  const p = {};
+  for (const part of fmt.formatToParts(date)) p[part.type] = part.value;
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+function formatLocalWall(date, tz) {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+  const p = {};
+  for (const part of fmt.formatToParts(date)) p[part.type] = part.value;
+  const hh = p.hour === '24' ? '00' : p.hour;
+  return `${p.year}-${p.month}-${p.day}T${hh}:${p.minute}`;
+}
+
+function stripOffset(s) {
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (!m) return s;
+  const [, y, mo, d, h = '00', mi = '00', se = '00'] = m;
+  return `${y}-${mo}-${d}T${h}:${mi}:${se}`;
+}
+
 module.exports = {
   AUTHORITY,
   SCOPES,
@@ -301,4 +393,12 @@ module.exports = {
   getAccessToken,
   graphRequest,
   graphGetAll,
+  parseLocal,
+  graphDtToLocal,
+  toGraphUtcZ,
+  graphAllDayDate,
+  addDaysToIsoDate,
+  formatDateOnly,
+  formatLocalWall,
+  stripOffset,
 };
