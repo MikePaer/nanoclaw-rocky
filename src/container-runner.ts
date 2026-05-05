@@ -222,14 +222,25 @@ function buildVolumeMounts(
     'agent-runner-src',
   );
   if (fs.existsSync(agentRunnerSrc)) {
-    const srcIndex = path.join(agentRunnerSrc, 'index.ts');
-    const cachedIndex = path.join(groupAgentRunnerDir, 'index.ts');
+    // Compare the newest mtime across the whole src tree against the cached
+    // copy. Tracking only index.ts misses changes to sibling files like
+    // ipc-mcp-stdio.ts.
+    const newestMtime = (dir: string): number => {
+      let max = 0;
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        const m = entry.isDirectory()
+          ? newestMtime(full)
+          : fs.statSync(full).mtimeMs;
+        if (m > max) max = m;
+      }
+      return max;
+    };
     const needsCopy =
       !fs.existsSync(groupAgentRunnerDir) ||
-      !fs.existsSync(cachedIndex) ||
-      (fs.existsSync(srcIndex) &&
-        fs.statSync(srcIndex).mtimeMs > fs.statSync(cachedIndex).mtimeMs);
+      newestMtime(agentRunnerSrc) > newestMtime(groupAgentRunnerDir);
     if (needsCopy) {
+      fs.rmSync(groupAgentRunnerDir, { recursive: true, force: true });
       fs.cpSync(agentRunnerSrc, groupAgentRunnerDir, { recursive: true });
     }
   }

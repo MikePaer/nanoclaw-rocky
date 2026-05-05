@@ -153,6 +153,39 @@ export class SignalChannel implements Channel {
     );
   }
 
+  async sendAttachment(
+    jid: string,
+    paths: string[],
+    caption?: string,
+  ): Promise<void> {
+    if (paths.length === 0) return;
+    if (!this.connected) {
+      throw new Error('Signal channel not connected');
+    }
+
+    const target = jid.replace(/^signal:/, '');
+    const params: Record<string, unknown> = {
+      ...routeRecipient(target),
+      attachments: paths,
+    };
+
+    if (caption && caption.trim().length > 0) {
+      const { text: plainText, textStyle } = parseSignalStyles(caption);
+      params.message = plainText;
+      if (textStyle.length > 0) {
+        params.textStyle = textStyle.map(
+          (s) => `${s.start}:${s.length}:${s.style}`,
+        );
+      }
+    }
+
+    await this.rpcCall('send', params);
+    logger.info(
+      { jid, count: paths.length, hasCaption: !!caption },
+      'Signal attachment sent',
+    );
+  }
+
   async sendMessage(jid: string, text: string): Promise<void> {
     if (!this.connected) {
       this.enqueue(jid, text);

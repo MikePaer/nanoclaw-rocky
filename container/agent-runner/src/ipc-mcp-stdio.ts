@@ -68,6 +68,47 @@ server.tool(
 );
 
 server.tool(
+  'send_image',
+  `Send one or more images (or other media) to the user as a native attachment. Use this when the user asks to see pictures or you have visual content that text cannot convey — e.g. product photos, screenshots, generated images.
+
+Pass http(s) URLs that the host will download and attach. Up to 10 attachments per call, 25MB each. The optional caption is sent alongside the images as a single message.
+
+Channels that don't support native attachments (e.g. webhook) fall back to sending the URLs as text.`,
+  {
+    urls: z
+      .array(z.string().url())
+      .min(1)
+      .max(10)
+      .describe('Up to 10 http(s) URLs of images/media to send'),
+    caption: z
+      .string()
+      .optional()
+      .describe('Optional caption shown with the attachments'),
+  },
+  async (args) => {
+    const data: Record<string, unknown> = {
+      type: 'attachment',
+      chatJid,
+      urls: args.urls,
+      caption: args.caption,
+      groupFolder,
+      timestamp: new Date().toISOString(),
+    };
+
+    writeIpcFile(MESSAGES_DIR, data);
+
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: `Sending ${args.urls.length} attachment${args.urls.length === 1 ? '' : 's'}.`,
+        },
+      ],
+    };
+  },
+);
+
+server.tool(
   'schedule_task',
   `Schedule a recurring or one-time task. The task will run as a full agent with access to all tools. Returns the task ID for future reference. To modify an existing task, use update_task instead.
 

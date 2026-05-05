@@ -1,4 +1,5 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 import { OneCLI } from '@onecli-sh/sdk';
@@ -14,6 +15,7 @@ import {
   POLL_INTERVAL,
   TIMEZONE,
 } from './config.js';
+import { downloadAttachment } from './attachments.js';
 import './channels/index.js';
 import {
   getChannelFactory,
@@ -798,6 +800,56 @@ async function main(): Promise<void> {
       const text = formatOutbound(rawText, channel.name as ChannelType);
       if (!text) return Promise.resolve();
       return channel.sendMessage(jid, text);
+    },
+    sendAttachment: async (jid, urls, caption) => {
+      const channel = findChannel(channels, jid);
+      if (!channel) throw new Error(`No channel for JID: ${jid}`);
+
+      const httpUrls = urls
+        .filter((u) => typeof u === 'string' && /^https?:\/\//i.test(u))
+        .slice(0, 10);
+      if (httpUrls.length === 0) {
+        logger.warn({ jid }, 'sendAttachment called with no http(s) URLs');
+        return;
+      }
+
+      // Channels without native attachment support fall back to sending the
+      // URLs as a message so the user still gets clickable links.
+      if (!channel.sendAttachment) {
+        const fallback = caption
+          ? `${caption}\n${httpUrls.join('\n')}`
+          : httpUrls.join('\n');
+        const text = formatOutbound(fallback, channel.name as ChannelType);
+        if (text) await channel.sendMessage(jid, text);
+        return;
+      }
+
+      const tempRoot = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'nanoclaw-attach-'),
+      );
+      try {
+        const paths: string[] = [];
+        for (let i = 0; i < httpUrls.length; i++) {
+          try {
+            paths.push(await downloadAttachment(httpUrls[i], tempRoot, i));
+          } catch (err) {
+            logger.warn(
+              { url: httpUrls[i], err },
+              'Failed to download attachment, skipping',
+            );
+          }
+        }
+        if (paths.length === 0) {
+          throw new Error('All attachment downloads failed');
+        }
+        await channel.sendAttachment(jid, paths, caption);
+      } finally {
+        try {
+          fs.rmSync(tempRoot, { recursive: true, force: true });
+        } catch (err) {
+          logger.debug({ tempRoot, err }, 'Failed to remove temp attachment dir');
+        }
+      }
     },
     registeredGroups: () => registeredGroups,
     registerGroup,

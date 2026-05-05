@@ -95,6 +95,13 @@ export interface Channel {
   setTyping?(jid: string, isTyping: boolean): Promise<void>;
   // Optional: sync group/chat names from the platform.
   syncGroups?(force: boolean): Promise<void>;
+  // Optional: send media attachments (already downloaded to host paths).
+  // When omitted, the IPC layer falls back to sendMessage with the URLs.
+  sendAttachment?(
+    jid: string,
+    paths: string[],
+    caption?: string,
+  ): Promise<void>;
 }
 
 // Callback type that channels use to deliver inbound messages

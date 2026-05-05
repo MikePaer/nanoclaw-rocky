@@ -12,6 +12,11 @@ import { RegisteredGroup } from './types.js';
 
 export interface IpcDeps {
   sendMessage: (jid: string, text: string) => Promise<void>;
+  sendAttachment: (
+    jid: string,
+    urls: string[],
+    caption: string | undefined,
+  ) => Promise<void>;
   registeredGroups: () => Record<string, RegisteredGroup>;
   registerGroup: (jid: string, group: RegisteredGroup) => void;
   syncGroups: (force: boolean) => Promise<void>;
@@ -90,6 +95,30 @@ export function startIpcWatcher(deps: IpcDeps): void {
                   logger.warn(
                     { chatJid: data.chatJid, sourceGroup },
                     'Unauthorized IPC message attempt blocked',
+                  );
+                }
+              } else if (
+                data.type === 'attachment' &&
+                data.chatJid &&
+                Array.isArray(data.urls) &&
+                data.urls.length > 0
+              ) {
+                const targetGroup = registeredGroups[data.chatJid];
+                if (
+                  isMain ||
+                  (targetGroup && targetGroup.folder === sourceGroup)
+                ) {
+                  await deps.sendAttachment(
+                    data.chatJid,
+                    data.urls.filter(
+                      (u: unknown): u is string => typeof u === 'string',
+                    ),
+                    typeof data.caption === 'string' ? data.caption : undefined,
+                  );
+                } else {
+                  logger.warn(
+                    { chatJid: data.chatJid, sourceGroup },
+                    'Unauthorized IPC attachment attempt blocked',
                   );
                 }
               }
