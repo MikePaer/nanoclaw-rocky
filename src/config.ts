@@ -19,6 +19,8 @@ const envConfig = readEnvFile([
   'OUTLOOK_CLIENT_ID',
   'FORECASTER_API_URL',
   'FORECASTER_API_KEY',
+  'PAYROLL_API_URL',
+  'PAYROLL_TOKEN',
   'SIGNAL_PHONE_NUMBER',
   'SIGNAL_CLI_PATH',
   'NO_PROXY',
@@ -80,6 +82,10 @@ export const FORECASTER_API_URL =
   process.env.FORECASTER_API_URL || envConfig.FORECASTER_API_URL;
 export const FORECASTER_API_KEY =
   process.env.FORECASTER_API_KEY || envConfig.FORECASTER_API_KEY;
+export const PAYROLL_API_URL =
+  process.env.PAYROLL_API_URL || envConfig.PAYROLL_API_URL;
+export const PAYROLL_TOKEN =
+  process.env.PAYROLL_TOKEN || envConfig.PAYROLL_TOKEN;
 export const SIGNAL_PHONE_NUMBER =
   process.env.SIGNAL_PHONE_NUMBER || envConfig.SIGNAL_PHONE_NUMBER || '';
 export const SIGNAL_CLI_PATH =

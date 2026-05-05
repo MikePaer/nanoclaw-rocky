@@ -19,6 +19,8 @@ import {
   OUTLOOK_CLIENT_ID,
   FORECASTER_API_URL,
   FORECASTER_API_KEY,
+  PAYROLL_API_URL,
+  PAYROLL_TOKEN,
   GROUPS_DIR,
   IDLE_TIMEOUT,
   NO_PROXY,
@@ -303,6 +305,14 @@ async function buildContainerArgs(
 
   if (FORECASTER_API_KEY) {
     args.push('-e', `FORECASTER_API_KEY=${FORECASTER_API_KEY}`);
+  }
+
+  if (PAYROLL_API_URL) {
+    args.push('-e', `PAYROLL_API_URL=${PAYROLL_API_URL}`);
+  }
+
+  if (PAYROLL_TOKEN) {
+    args.push('-e', `PAYROLL_TOKEN=${PAYROLL_TOKEN}`);
   }
 
   // Bypass the OneCLI proxy for loopback and LAN addresses — those services
