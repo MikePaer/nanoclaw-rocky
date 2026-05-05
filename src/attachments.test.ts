@@ -45,7 +45,9 @@ describe('downloadAttachment', () => {
     });
     const dest = await downloadAttachment(`${baseUrl}/cat.png`, tmpDir, 0);
     expect(dest).toMatch(/att-0\.png$/);
-    expect(fs.readFileSync(dest)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    expect(fs.readFileSync(dest)).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+    );
   });
 
   it('falls back to extension from content-type when URL has none', async () => {

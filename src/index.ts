@@ -847,7 +847,10 @@ async function main(): Promise<void> {
         try {
           fs.rmSync(tempRoot, { recursive: true, force: true });
         } catch (err) {
-          logger.debug({ tempRoot, err }, 'Failed to remove temp attachment dir');
+          logger.debug(
+            { tempRoot, err },
+            'Failed to remove temp attachment dir',
+          );
         }
       }
     },
