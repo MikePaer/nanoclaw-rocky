@@ -21,6 +21,8 @@ const envConfig = readEnvFile([
   'FORECASTER_API_KEY',
   'PAYROLL_API_URL',
   'PAYROLL_TOKEN',
+  'GARBAGE_PICKUP_ICS_URL',
+  'GARBAGE_PICKUP_TIMEZONE',
   'SIGNAL_PHONE_NUMBER',
   'SIGNAL_CLI_PATH',
   'NO_PROXY',
@@ -86,6 +88,10 @@ export const PAYROLL_API_URL =
   process.env.PAYROLL_API_URL || envConfig.PAYROLL_API_URL;
 export const PAYROLL_TOKEN =
   process.env.PAYROLL_TOKEN || envConfig.PAYROLL_TOKEN;
+export const GARBAGE_PICKUP_ICS_URL =
+  process.env.GARBAGE_PICKUP_ICS_URL || envConfig.GARBAGE_PICKUP_ICS_URL;
+export const GARBAGE_PICKUP_TIMEZONE =
+  process.env.GARBAGE_PICKUP_TIMEZONE || envConfig.GARBAGE_PICKUP_TIMEZONE;
 export const SIGNAL_PHONE_NUMBER =
   process.env.SIGNAL_PHONE_NUMBER || envConfig.SIGNAL_PHONE_NUMBER || '';
 export const SIGNAL_CLI_PATH =

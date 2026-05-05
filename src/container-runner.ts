@@ -21,6 +21,8 @@ import {
   FORECASTER_API_KEY,
   PAYROLL_API_URL,
   PAYROLL_TOKEN,
+  GARBAGE_PICKUP_ICS_URL,
+  GARBAGE_PICKUP_TIMEZONE,
   GROUPS_DIR,
   IDLE_TIMEOUT,
   NO_PROXY,
@@ -313,6 +315,14 @@ async function buildContainerArgs(
 
   if (PAYROLL_TOKEN) {
     args.push('-e', `PAYROLL_TOKEN=${PAYROLL_TOKEN}`);
+  }
+
+  if (GARBAGE_PICKUP_ICS_URL) {
+    args.push('-e', `GARBAGE_PICKUP_ICS_URL=${GARBAGE_PICKUP_ICS_URL}`);
+  }
+
+  if (GARBAGE_PICKUP_TIMEZONE) {
+    args.push('-e', `GARBAGE_PICKUP_TIMEZONE=${GARBAGE_PICKUP_TIMEZONE}`);
   }
 
   // Bypass the OneCLI proxy for loopback and LAN addresses — those services
